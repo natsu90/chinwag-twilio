@@ -328,10 +328,12 @@ app.get('/', (req, res) => {
 
 app.post('/login', async (req, res) => {
 
-	console.log(`Attempt login from ${req.ip} using ${req.body.phone_number}`)
+	const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress
+
+	console.log(`Attempt login from ${ip} using ${req.body.phone_number}`)
 
 	const phone_number = req.body.phone_number,
-		phone_info = await getPhoneInfo(phone_number, req.ip)
+		phone_info = await getPhoneInfo(phone_number, ip)
 
 	if (phone_info.isValidNumber)
 		sendPassword(phone_info.phone_number)
