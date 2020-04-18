@@ -77,7 +77,7 @@ function sendPassword(phone_number) {
 	     from: process.env.TWILIO_NUMBER,
 	     to: phone_number
 	   })
-	  .then(message => console.log(`${phone_number} => ${verification_code}`))
+	  .then(message => console.log(`Login: ${phone_number} => ${verification_code}`))
 }
 
 async function validatePassword(phone_number, verification_code) {
@@ -327,6 +327,8 @@ app.get('/', (req, res) => {
 })
 
 app.post('/login', async (req, res) => {
+
+	console.log(`Attempt login from ${req.ip} using ${req.body.phone_number}`)
 
 	const phone_number = req.body.phone_number,
 		phone_info = await getPhoneInfo(phone_number, req.ip)
