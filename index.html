@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CHINWAG</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.8.2/css/bulma.min.css">
+    <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+    <style type="text/css">
+    	.toggle {
+		  -webkit-appearance: none;
+		  -moz-appearance: none;
+		  appearance: none;
+		  width: 93px;
+		  height: 48px;
+		  display: inline-block;
+		  position: relative;
+		  border-radius: 50px;
+		  overflow: hidden;
+		  outline: none;
+		  border: none;
+		  cursor: pointer;
+		  background-color: #707070;
+		  transition: background-color ease 0.3s;
+		}
+
+		.toggle:before {
+		  content: "on off";
+		  display: block;
+		  position: absolute;
+		  z-index: 2;
+		  width: 42px;
+		  height: 42px;
+		  background: #fff;
+		  left: 2px;
+		  top: 2px;
+		  border-radius: 50%;
+		  font: 15px/42px Helvetica;
+		  text-transform: uppercase;
+		  font-weight: bold;
+		  text-indent: -33px;
+		  word-spacing: 55px;
+		  color: #fff;
+		  text-shadow: -1px -1px rgba(0,0,0,0.15);
+		  white-space: nowrap;
+		  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+		  transition: all cubic-bezier(0.3, 1.5, 0.7, 1) 0.3s;
+		}
+
+		.toggle:checked {
+		  background-color: #4CD964;
+		}
+
+		.toggle:checked:before {
+		  left: 48px;
+		}
+    </style>
+  </head>
+  <body>
+  <section class="section">
+    <div class="container has-text-centered">
+      <h1 class="title">
+        +18557725566
+      </h1>
+      <p class="subtitle">
+        Have a chinwag. Anonymously.
+      </p>
+      <div class="columns is-centered" style="padding:10px">
+      <table class="table">
+      	<thead>
+      		<tr>
+      			<th>Description</th><th>Total</th>
+      		</tr>
+      	</thead>
+      	<tbody>
+      		<tr>
+      			<td>Registered</td><td id="total-registered">0</td>
+      		</tr>
+      		<tr>
+      			<td>Available</td><td id="total-available">0</td>
+      		</tr>
+      		<tr>
+      			<td>Occupied</td><td id="total-busy">0</td>
+      		</tr>
+      		<tr>
+      			<td>Calls</td><td id="total-calls">0</td>
+      		</tr>
+      	</tbody>
+      </table>
+	</div>
+	<div class="columns is-centered user-ui" style="padding:20px;display:none;">
+		<input class="toggle is-disabled" id="status" type="checkbox" />
+	</div>
+	<div class="columns is-centered" style="padding:10px">
+		<button id="login" class="button is-primary is-large guest-ui">JOIN US!</button>
+		<button id="logout" class="button is-danger is-large user-ui" style="display:none;">LOGOUT</button>
+	</div>
+    </div>
+  </section>
+
+  <footer class="footer">
+  <div class="content has-text-centered">
+    <p>
+      Made with ❤️ by Sulaiman Sudirman (<a href="https://sulai.mn/">sulai.mn</a>)
+    </p>
+  </div>
+</footer>
+<div class="modal" id="login-modal">
+  <div class="modal-background"></div>
+  <div class="modal-content">
+  	<div class="box">
+    	<div class="field has-addons">
+		  <div class="control has-icons-left is-expanded">
+		    <input class="input" type="text" placeholder="Mobile Number" name="phone_number">
+		    <span class="icon is-left">
+		      <i class="fas fa-mobile fa-sm"></i>
+		    </span>
+		  </div>
+		  <div class="control">
+		    <a class="button is-info" id="request-code">
+		      Next
+		    </a>
+		  </div>
+		</div>
+
+		<p class="help is-success code-requested" style="display:none">A verification code is sent to the mobile number</p>
+    	<div class="field has-addons code-requested" style="display:none">
+		  <div class="control has-icons-left is-expanded">
+		    <input class="input" type="text" placeholder="Verification Code" name="verification_code">
+		    <span class="icon is-left">
+		      <i class="fas fa-key fa-sm"></i>
+		    </span>
+		  </div>
+		  <div class="control">
+		    <a class="button is-info" id="validate-code">
+		      Enter
+		    </a>
+		  </div>
+		</div>
+	</div>
+  </div>
+  <button class="modal-close is-large" aria-label="close"></button>
+</div>
+<script src="https://code.jquery.com/jquery-3.5.0.min.js" integrity="sha256-xNzN2a4ltkB44Mc/Jz3pT4iU1cmeR0FkXs4pru/JxaQ=" crossorigin="anonymous"></script>
+<script type="text/javascript">
+
+	const url = "http://905d3d85.ngrok.io"
+
+	$.get('/stats', function(res) {
+		for (var key in res)
+			$('#total-'+ key).text(res[key])
+	})
+
+	// check if loggedin
+	let auth_token = localStorage.getItem('auth_token'),
+		phone_number = localStorage.getItem('phone_number'),
+		status = localStorage.getItem('status')
+
+	if (auth_token != null && phone_number != null) {
+		$('.user-ui').show()
+		$('.guest-ui').hide()
+		// set online status
+		if (status > 0) $('#status').prop('checked', true)
+	}
+
+	// status toggle action
+	$('#status').on('change', function(e) {
+		// e.preventDefault()
+
+		let $this = $(this),
+			status_value = $this.is(':checked') ? 1 : 0;
+
+		$.post('/update-status', {
+			phone_number: phone_number,
+			auth_token: auth_token,
+			status: status_value
+		}, function(res) {
+			localStorage.setItem('status', res.status)
+			status = res.status
+			$this.prop('checked', res.status > 0)
+			alert(res.message)
+		})
+	})
+
+	// logout button action
+	$('#logout').on('click', function(e) {
+		e.preventDefault()
+		// clear storage
+		localStorage.removeItem('auth_token')
+		localStorage.removeItem('phone_number')
+		localStorage.removeItem('status')
+		// reload
+		location.href = '/'
+	})
+
+	// login button action
+  	$('#login').on('click', function(e) {
+
+  		var $modal = $('#login-modal')
+  		// open modal action
+  		e.preventDefault()
+  		$modal.addClass('is-active')
+  		$('html').addClass('is-clipped')
+
+  		// close modal action
+  		$modal.find('.modal-close').on('click', function(e) {
+  			e.preventDefault()
+  			$modal.removeClass('is-active')
+  			$('html').removeClass('is-clipped')
+  		})
+
+  		$('#request-code').on('click', function(e) {
+  			e.preventDefault()
+  			// disable button
+  			let $request_code_btn = $(this)
+  			$request_code_btn.attr('disabled', true)
+  			// hide verification code input
+  			$('.code-requested').hide()
+
+  			let $phone_number = $('[name=phone_number]')
+  			// clear error color
+  			$phone_number.removeClass('is-danger')
+
+  			$.post('/login', {
+  				phone_number: $phone_number.val()
+  			}, function(res) {
+  				console.log(res)
+  				if (res.isValidNumber) {
+  					$('.code-requested').show() // show verification code input
+  					$phone_number.val(res.phone_number) // put correct format
+  					// validate code button action
+  					$('#validate-code').on('click', function(e) {
+  						e.preventDefault()
+  						// disable button
+  						let $validate_code_btn = $(this)
+  						$validate_code_btn.attr('disabled', true)
+  						// clear error color
+  						$('[name=verification_code]').removeClass('is-danger')
+
+  						$.post('/verify', {
+  							phone_number: $phone_number.val(),
+  							verification_code: $('[name=verification_code]').val()
+  						}, function(res) {
+  							if (res.auth_token == null) {
+  								$('[name=verification_code]').addClass('is-danger')
+  							} else {
+  								// save to storage
+  								localStorage.setItem('auth_token', res.auth_token)
+  								localStorage.setItem('phone_number', $phone_number.val())
+  								localStorage.setItem('status', res.status)
+  								// reload page
+  								location.href = '/'
+  							}
+  						}) // enable button back
+  						.always(function() {
+  							$validate_code_btn.attr('disabled', false)
+  						})
+  					})
+  				} else {
+  					$phone_number.addClass('is-danger')
+  				}
+  			}) // enable button back
+  			.always(function() {
+  				$request_code_btn.attr('disabled', false)
+  			})
+  		})
+  	})
+
+</script>
+</body>
+</html>
