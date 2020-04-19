@@ -432,6 +432,23 @@ app.get('/ringtone', (req, res) => {
 	res.sendFile( __dirname + '/ringtone.mp3')
 })
 
+// update webhook URL in account
+client.incomingPhoneNumbers
+	.list({phoneNumber: process.env.TWILIO_NUMBER, limit: 1})
+	.then((incomingPhoneNumbers) => {
+		incomingPhoneNumbers.forEach(i => {
+			console.log(i.sid)
+			client.incomingPhoneNumbers(i.sid).update({
+				voiceMethod: 'POST',
+				voiceUrl: `https://${process.env.APP_URL}/call`,
+				voiceReceiveMode: 'voice',
+				statusCallbackMethod: 'POST',
+				statusCallback: `https://${process.env.APP_URL}/phone-status`
+			})
+		})
+	})
+	.catch(err => console.error(err));
+
 // create queue resource
 client.queues.create({friendlyName: queue_name, maxSize: 5000})
 	.then(queue => console.log(queue.sid))
