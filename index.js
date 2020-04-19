@@ -78,6 +78,7 @@ function sendPassword(phone_number) {
 	     to: phone_number
 	   })
 	  .then(message => console.log(`Login: ${phone_number} => ${verification_code}`))
+	  .catch(err => console.error(err))
 }
 
 async function validatePassword(phone_number, verification_code) {
@@ -227,14 +228,17 @@ app.post('/dequeue-action', logRequest, (req, res) => {
 	res.send(twiml.toString())
 })
 
-app.post('/endcall-status', logRequest, (req, res) => {
+app.post('/endcall-action', logRequest, (req, res) => {
+	
+	const twiml = new twilio.twiml.VoiceResponse()
 
+	twiml.say('Good bye!')
 	// update back receiver status to online
 	const doc_id = req.body.Called.replace('+', '')
 
 	users.doc(doc_id).update({status: 1})
 
-	res.send('OK')
+	res.send(twiml.toString())
 })
 
 app.post('/connected-status', logRequest, (req, res) => {
@@ -320,7 +324,7 @@ app.post('/startcall-action', logRequest, (req, res) => {
 		twiml.hangup()
 	else
 		// dequeue
-		twiml.dial({action: '/endcall-status'}).queue({
+		twiml.dial({action: '/endcall-action'}).queue({
 			url: '/connected-status'
 		}, queue_name)
 
