@@ -138,7 +138,7 @@ function logRequest (req, res, next) {
 	
 	const data = req.body
 
-	data.url = req.originalUrl
+	data._Url = req.originalUrl
 
 	logs.add(data)
 
@@ -168,7 +168,6 @@ app.post('/call', logRequest, (req, res) => {
 
 	// making phone call to available users
 	// todo // exclude caller number from available users
-	// todo // drop call or continue if goes to answering machine
 	users.where('status', '==', 1).get()
 		.then(snapshot => {
 		    if (snapshot.empty) {
@@ -181,9 +180,10 @@ app.post('/call', logRequest, (req, res) => {
 		    	const user = doc.data()
 
 		    	client.calls.create({
-				  from: process.env.TWILIO_NUMBER,
-				  to: user.phone_number,
-				  url: `https://${process.env.APP_URL}/startcall-action`
+		    		machineDetection: 'Enable',
+				  	from: process.env.TWILIO_NUMBER,
+				  	to: user.phone_number,
+				  	url: `https://${process.env.APP_URL}/startcall-action`
 				}).then(call => {
 				  // console.log('Your phone should be ringing');
 				  // set call_sid in user table
@@ -271,7 +271,6 @@ app.post('/connected-status', logRequest, (req, res) => {
 		},
 		function(cb) {
 			// hangup other call if queue is empty
-			// todo // race condition with above?
 			client.queues(req.body.QueueSid).fetch().then((queue) => {
 
 				if (queue.current_size == 0) {
@@ -312,12 +311,16 @@ app.post('/phone-status', logRequest, (req, res) => {
 
 app.post('/startcall-action', logRequest, (req, res) => {
 
-	const twiml = new twilio.twiml.VoiceResponse()
-
-	// dequeue
-	twiml.dial({action: '/endcall-status'}).queue({
-		url: '/connected-status'
-	}, queue_name)
+	const twiml = new twilio.twiml.VoiceResponse(),
+		answeredBy = req.body.AnsweredBy
+	// hangup reciever call if answered by machine
+	if (answeredBy == 'machine_start')
+		twiml.hangup()
+	else
+		// dequeue
+		twiml.dial({action: '/endcall-status'}).queue({
+			url: '/connected-status'
+		}, queue_name)
 
 	res.send(twiml.toString())
 })
