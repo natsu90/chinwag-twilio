@@ -320,7 +320,7 @@ app.post('/startcall-action', logRequest, (req, res) => {
 	const twiml = new twilio.twiml.VoiceResponse(),
 		answeredBy = req.body.AnsweredBy
 	// hangup reciever call if answered by machine
-	if (answeredBy == 'machine_start')
+	if (answeredBy.indexOf('machine') >= 0)
 		twiml.hangup()
 	else
 		// dequeue
