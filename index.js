@@ -136,7 +136,9 @@ async function updateUserStatus(phone_number, auth_token, status) {
 
 function logRequest (req, res, next) {
 	
-	const data = {'_Url': req.originalUrl, ...req.body}
+	const data = req.body
+
+	data[' _URL'] = req.originalUrl
 
 	logs.add(data)
 
