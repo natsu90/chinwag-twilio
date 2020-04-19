@@ -138,6 +138,7 @@ function logRequest (req, res, next) {
 	
 	const data = req.body
 
+	data[' _Time'] = new Date().toISOString()
 	data[' _URL'] = req.originalUrl
 
 	logs.add(data)
@@ -162,6 +163,7 @@ app.post('/call', logRequest, (req, res) => {
 
 	// insert record to calls table
 	calls.doc(req.body.CallSid).set({
+		' _Time': new Date().toISOString(),
 		from: req.body.From,
 		status: 2 // pending status
 	})
