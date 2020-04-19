@@ -16,8 +16,7 @@ const express = require('express'),
 	async = require('async'),
 
 	port = process.env.PORT || 1337,
-	queue_name = 'callcenter',
-	queue_sid = null
+	queue_name = 'callcenter'
 
 const serviceAccount = require('./firebase-key.json')
 
@@ -169,6 +168,18 @@ app.post('/call', logRequest, (req, res) => {
 		status: 2 // pending status
 	})
 
+	res.send(twiml.toString())
+})
+
+app.post('/wait', logRequest, (req, res) => {
+
+	const twiml = new twilio.twiml.VoiceResponse(),
+		queue_size = req.body.CurrentQueueSize,
+		queue_position = req.body.QueuePosition
+
+	twiml.say(`You are number ${queue_position} from ${queue_size} in the queue. Please hold.`)
+	twiml.play({loop: 2}, '/ringtone')
+
 	// making phone call to available users
 	// todo // exclude caller number from available users
 	users.where('status', '==', 1).get()
@@ -195,22 +206,10 @@ app.post('/call', logRequest, (req, res) => {
 				  console.error(err.message);
 				})
 		    });
-		  })
+		})
 		.catch(err => {
 			console.log('Error getting documents', err);
 		});
-
-	res.send(twiml.toString())
-})
-
-app.post('/wait', logRequest, (req, res) => {
-
-	const twiml = new twilio.twiml.VoiceResponse(),
-		queue_size = req.body.CurrentQueueSize,
-		queue_position = req.body.QueuePosition
-
-	twiml.say(`You are number ${queue_position} from ${queue_size} in the queue. Please hold.`)
-	twiml.play('https://api.twilio.com/cowbell.mp3')
 
 	res.send(twiml.toString())
 })
@@ -219,10 +218,37 @@ app.post('/dequeue-action', logRequest, (req, res) => {
 
 	const twiml = new twilio.twiml.VoiceResponse()
 
-	twiml.say('Good bye!')
+	twiml.hangup()
 	// update calls status to complete
 	calls.doc(req.body.CallSid).update({
 		status: 0
+	})
+
+	// hangup other call if queue is empty
+	client.queues(req.body.QueueSid).fetch().then((queue) => {
+
+		if (queue.currentSize == 0) {
+
+			users.where('status', '==', 1).get()
+				.then(snapshot => {
+				    if (snapshot.empty) {
+				      console.log('No matching documents.');
+				      return;
+				    }  
+
+				    snapshot.forEach(doc => {
+
+				    	const user = doc.data()
+				    	// send hangup signal on every sid regardless active or not
+				    	client.calls(user.call_sid)
+				    		.update({status: 'completed'})
+				    		.then(call => console.log(`dropping call to ${call.to}`))
+				    })
+				})
+				.catch(err => {
+					console.log('Error getting documents', err);
+				})
+		}
 	})
 
 	res.send(twiml.toString())
@@ -232,7 +258,7 @@ app.post('/endcall-action', logRequest, (req, res) => {
 	
 	const twiml = new twilio.twiml.VoiceResponse()
 
-	twiml.say('Good bye!')
+	twiml.hangup()
 	// update back receiver status to online
 	const doc_id = req.body.Called.replace('+', '')
 
@@ -279,7 +305,7 @@ app.post('/connected-status', logRequest, (req, res) => {
 			// hangup other call if queue is empty
 			client.queues(req.body.QueueSid).fetch().then((queue) => {
 
-				if (queue.current_size == 0) {
+				if (queue.currentSize == 0) {
 
 					users.where('status', '==', 1).get()
 						.then(snapshot => {
@@ -293,7 +319,8 @@ app.post('/connected-status', logRequest, (req, res) => {
 						    	const user = doc.data()
 						    	// send hangup signal on every sid regardless active or not
 						    	client.calls(user.call_sid)
-						    		update({status: 'completed'})
+						    		.update({status: 'completed'})
+						    		.then(call => console.log(`dropping call to ${call.to}`))
 						    })
 
 						    cb(null, true)
@@ -400,23 +427,15 @@ app.get('/stats', (req, res) => {
 	})
 })
 
+app.get('/ringtone', (req, res) => {
+
+	res.sendFile( __dirname + '/ringtone.mp3')
+})
+
 // create queue resource
 client.queues.create({friendlyName: queue_name, maxSize: 5000})
 	.then(queue => console.log(queue.sid))
-	.catch((err) => {
-		// queue ald exists
-		if (err.code == 22003) {
-			// assign queue_sid to use later
-			client.queues.list({limit: 20})
-				.then(queues => queues.forEach((q) => {
-					if (queue_name == q.friendlyName)
-						queue_sid = q.sid
-				}))
-			// todo // update maxSize in case ald created way before?
-		} else {
-			console.error(err.message)
-		}
-	})
+	.catch(err => console.error(err.message))
 
 app.listen(port)
 
