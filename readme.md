@@ -10,6 +10,8 @@ Give a call to `+18557725566` to chat with someone,
 
 **OR** become that someone who will be ready to receive a call by registering your number at [https://chinwag.xyz](https://chinwag.xyz)
 
+> Currently only New Zealand & USA phone number are supported for this demo.
+
 ### Idea
 
 Amid the current pandemic outbreak, peoples are forced to stay home to break the chain of transmission. But there are some unfortunate people who don't have anyone at their home to rely for help or emotional support. And also there are some who have limited or no access to the internet at their home like in New Zealand. So here is a crowdsourcing phone support.
