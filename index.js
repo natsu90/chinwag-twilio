@@ -328,8 +328,6 @@ app.post('/update-status', async (req, res) => {
 	} else {
 		res.status(403).send('Unauthorized')
 	}
-
-	res.json(response)
 })
 
 app.post('/get-status', (req, res) => {
