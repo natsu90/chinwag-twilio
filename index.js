@@ -381,6 +381,62 @@ client.incomingPhoneNumbers
 	})
 	.catch(err => console.error(err));
 
+// update geo dialing permissions
+let permissions = {
+		low_risk_numbers_enabled: true,
+		high_risk_special_numbers_enabled: false,
+		high_risk_tollfraud_numbers_enabled: false
+	},
+	whitelisted_countries = process.env.WHITELISTED_COUNTRIES.split(','),
+	update_request_data = []
+
+whitelisted_countries.forEach((country_code) => {
+
+	let data = Object.assign({}, permissions)
+
+	data.iso_code = country_code
+
+	update_request_data.push(data)
+})
+
+client.voice.dialingPermissions
+	.bulkCountryUpdates
+	.create({
+		updateRequest: JSON.stringify(update_request_data)
+	})
+	.then(bulk_country_update => console.log(bulk_country_update.updateRequest))
+	.catch(err => console.error(err.message));
+// disable others not in whitelist
+client.voice.dialingPermissions
+	.countries
+	.list({lowRiskNumbersEnabled: true, limit: 20})
+	.then(countries => {
+
+		let update_request_data = []
+
+		countries.forEach(c => {
+
+			if (whitelisted_countries.indexOf(c.isoCode) >= 0)
+				return;
+
+			let data = Object.assign({}, permissions)
+
+			data.low_risk_numbers_enabled = false
+			data.iso_code = c.isoCode
+
+			update_request_data.push(data)
+		})
+
+		client.voice.dialingPermissions
+			.bulkCountryUpdates
+			.create({
+				updateRequest: JSON.stringify(update_request_data)
+			})
+			.then(bulk_country_update => console.log(bulk_country_update.updateRequest))
+			.catch(err => console.error(err.message));
+
+	});
+
 // create queue resource
 client.queues.create({friendlyName: queue_name, maxSize: 5000})
 	.then(queue => console.log(queue.sid))
