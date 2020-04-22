@@ -42,8 +42,6 @@ Amid the current pandemic outbreak, peoples are forced to stay home to break the
 
 ### Todo
 
-* Exclude caller number from available users if the number is registered online
-* Use Firebase Authentication for Phone Number instead
 * Use a JavaScript frontend framework like ReactJS for the webpage
 * Make it deployable to Firebase Cloud Functions
 

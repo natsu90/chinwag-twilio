@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CHINWAG</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.8.2/css/bulma.min.css">
+    <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+    <style type="text/css">
+    	.toggle {
+		  -webkit-appearance: none;
+		  -moz-appearance: none;
+		  appearance: none;
+		  width: 93px;
+		  height: 48px;
+		  display: inline-block;
+		  position: relative;
+		  border-radius: 50px;
+		  overflow: hidden;
+		  outline: none;
+		  border: none;
+		  cursor: pointer;
+		  background-color: #707070;
+		  transition: background-color ease 0.3s;
+		}
+
+		.toggle:before {
+		  content: "on off";
+		  display: block;
+		  position: absolute;
+		  z-index: 2;
+		  width: 42px;
+		  height: 42px;
+		  background: #fff;
+		  left: 2px;
+		  top: 2px;
+		  border-radius: 50%;
+		  font: 15px/42px Helvetica;
+		  text-transform: uppercase;
+		  font-weight: bold;
+		  text-indent: -33px;
+		  word-spacing: 55px;
+		  color: #fff;
+		  text-shadow: -1px -1px rgba(0,0,0,0.15);
+		  white-space: nowrap;
+		  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+		  transition: all cubic-bezier(0.3, 1.5, 0.7, 1) 0.3s;
+		}
+
+		.toggle:checked {
+		  background-color: #4CD964;
+		}
+
+		.toggle:checked:before {
+		  left: 48px;
+		}
+    </style>
+    <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/4.5.0/firebase-ui-auth.css" />
+    <script src="https://www.gstatic.com/firebasejs/4.5.0/firebase.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/ui/4.5.0/firebase-ui-auth.js"></script>
+  </head>
+  <body>
+  <section class="section">
+    <div class="container has-text-centered">
+      <h1 class="title" id="total-phone_number">
+        {{ phone_number }}
+      </h1>
+      <p class="subtitle">
+        Have a chinwag. Anonymously.
+      </p>
+      <div class="columns is-mobile is-centered" style="padding:10px">
+      <table class="table">
+      	<thead>
+      		<tr>
+      			<th>Description</th><th>Total</th>
+      		</tr>
+      	</thead>
+      	<tbody>
+      		<tr>
+      			<td>Registered</td><td id="total-registered">{{ registered }}</td>
+      		</tr>
+      		<tr>
+      			<td>Available</td><td id="total-available">{{ available }}</td>
+      		</tr>
+      		<tr>
+      			<td>Occupied</td><td id="total-busy">{{ busy }}</td>
+      		</tr>
+      		<tr>
+      			<td>Calls</td><td id="total-calls">{{ calls }}</td>
+      		</tr>
+      	</tbody>
+      </table>
+      </div>
+
+      <div class="columns is-centered" id="user-signed-in" style="padding:20px;display:none;">
+        <div class="column">
+          <input type="hidden" id="phone-number"/>
+          <input type="hidden" id="auth-token"/>
+          <input class="toggle" id="status" type="checkbox" />
+        </div>
+        <div class="column" style="padding:10px;">
+          <button id="sign-out" class="button is-danger is-large">LOGOUT</button>
+        </div>
+      </div>
+      <div class="columns is-centered" id="user-signed-out" style="padding:20px;display:none;">
+        <button id="sign-in" class="button is-primary is-large">JOIN US!</button>
+        <div id="firebaseui-auth-container" style="display:none;"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+  <div class="content has-text-centered">
+    <p>
+      Made with ❤️ by Sulaiman Sudirman (<a href="https://sulai.mn/">sulai.mn</a>)
+    </p>
+  </div>
+</footer>
+<script src="https://code.jquery.com/jquery-3.5.0.min.js" integrity="sha256-xNzN2a4ltkB44Mc/Jz3pT4iU1cmeR0FkXs4pru/JxaQ=" crossorigin="anonymous"></script>
+<script type="text/javascript">
+
+  $('#status').on('change', function(e) {
+    e.preventDefault()
+
+    let $this = $(this),
+      status = $this.is(':checked') ? 1 : 0;
+
+    $.post('/update-status', {
+      phone_number: $('#phone-number').val(),
+      auth_token: $('#auth-token').val(),
+      status: status
+    }, function(res) {
+      alert('Update successfully!')
+    }).fail(function(xhr) {
+      $this.prop('checked', !status)
+      alert(xhr.responseText)
+    })
+  })
+
+  $('#sign-in').on('click', function() {
+    $(this).hide()
+    $('#firebaseui-auth-container').show()
+    ui.start('#firebaseui-auth-container', uiConfig)
+  })
+
+  // Your web app's Firebase configuration
+  var firebaseConfig = {
+    apiKey: "{{ firebase_web_apikey }}"
+  };
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+
+  // FirebaseUI config.
+  var uiConfig = {
+    // Url to redirect to after a successful sign-in.
+    'signInSuccessUrl': '/',
+    'callbacks': {
+      // Called when the user has been successfully signed in.
+      'signInSuccessWithAuthResult': function(authResult, redirectUrl) {
+        console.log(authResult, redirectUrl)
+        if (authResult.user) {
+          handleSignedInUser(authResult.user);
+        }
+        // Do not redirect.
+        return false;
+      }
+    },
+    'signInOptions': [
+      {
+        provider: firebase.auth.PhoneAuthProvider.PROVIDER_ID,
+        recaptchaParameters: {
+          size: 'normal' // or 'invisible'
+        },
+        defaultCountry: "{{ whitelisted_countries }}".split(",")[0],
+        whitelistedCountries: "{{ whitelisted_countries }}".split(",")
+      }
+    ],
+    // Terms of service url.
+    // 'tosUrl': 'https://www.google.com',
+    // 'privacyPolicyUrl': 'https://www.google.com'
+  };
+
+  // Initialize the FirebaseUI Widget using Firebase.
+  var ui = new firebaseui.auth.AuthUI(firebase.auth());
+  // Disable auto-sign in.
+  ui.disableAutoSignIn();
+  // if (ui.isPendingRedirect()) {
+  //   ui.start('#firebaseui-auth-container', uiConfig);
+  // }
+  // Listen to change in auth state so it displays the correct UI for when
+  // the user is signed in or not.
+  firebase.auth().onAuthStateChanged(function(user) {
+    user ? handleSignedInUser(user) : handleSignedOutUser()
+  })
+
+  /**
+   * Displays the UI for a signed in user.
+   * @param {!firebase.User} user
+   */
+  var handleSignedInUser = function(user) {
+    document.getElementById('user-signed-in').style.display = 'block';
+      document.getElementById('user-signed-out').style.display = 'none';
+      document.getElementById('phone-number').value = user.phoneNumber;
+      user.getIdToken().then((idToken) => {
+        document.getElementById('auth-token').value = idToken
+        $.post('/get-status', {
+          phone_number: user.phoneNumber,
+          auth_token: idToken
+        }, function(res) {
+          $('#status').prop('checked', res.status > 0)
+        })
+      })
+  }
+
+  /**
+   * Displays the UI for a signed out user.
+   */
+  var handleSignedOutUser = function() {
+    document.getElementById('user-signed-in').style.display = 'none';
+    document.getElementById('user-signed-out').style.display = 'block';
+    ui.start('#firebaseui-auth-container', uiConfig);
+  }
+
+  document.getElementById('sign-out').addEventListener('click', function() {
+    firebase.auth().signOut();
+  });
+
+</script>
+</body>
+</html>

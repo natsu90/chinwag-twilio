@@ -4,16 +4,13 @@ require('dotenv').config();
 const express = require('express'),
 	app = express(),
 	bodyParser = require('body-parser'),
-	request = require('request-promise'),
-	phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance(),
-	PNF = require('google-libphonenumber').PhoneNumberFormat,
 	twilio = require('twilio'),
 	client = new twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, { 
     	lazyLoading: true 
 	}),
 	admin = require('firebase-admin'),
-	// google = require('googleapis'),
 	async = require('async'),
+	hbs = require('hbs'),
 
 	port = process.env.PORT || 1337,
 	queue_name = 'callcenter'
@@ -29,111 +26,6 @@ let db = admin.firestore(),
 	logs = db.collection('logs'),
 	calls = db.collection('calls')
 
-async function getIpInfo(ip_address) {
-
-	var options = {
-        uri: "http://api.ipstack.com/" + ip_address,
-        method: "GET",
-        qs: {
-            access_key : process.env.IP_STACK_KEY,
-            format: 1
-        },
-        json: true
-    }
-
-	return await request(options);
-}
-
-async function getPhoneInfo(phone_number, ip_address) {
-
-	const ip_info = await getIpInfo(ip_address),
-		country_code = ip_info.country_code
-		number = phoneUtil.parseAndKeepRawInput(phone_number, country_code)
-
-	return {
-		isValidNumber: phoneUtil.isValidNumber(number),
-		phone_number: phoneUtil.format(number, PNF.E164)
-	}
-}
-
-function sendPassword(phone_number) {
-
-	const doc_id = phone_number.replace('+', ''),
-		verification_code = Math.floor(1000 + Math.random() * 9000),
-		data = {phone_number, verification_code}
-
-	// save data
-	users.doc(doc_id).set(data, {merge: true})
-	// set status if doesnt exist
-	users.doc(doc_id).get().then((doc) => {
-		if (typeof doc.get('status') == 'undefined')
-			users.doc(doc_id).set({status: 0}, {merge: true})
-	})
-	// send sms
-	client.messages
-	  .create({
-	     body: verification_code + ' is your verification code',
-	     from: process.env.TWILIO_NUMBER,
-	     to: phone_number
-	   })
-	  .then(message => console.log(`Login: ${phone_number} => ${verification_code}`))
-	  .catch(err => console.error(err))
-}
-
-async function validatePassword(phone_number, verification_code) {
-
-	const doc_id = phone_number.replace('+', ''),
-		rand=()=>Math.random(0).toString(36).substr(2),
-		token=(length)=>(rand()+rand()+rand()+rand()).substr(0,length),
-		auth_token = token(40)
-
-	let user_doc = await users.doc(doc_id).get(),
-		user = user_doc.data(),
-		data = { auth_token }
-
-	if (user.verification_code == verification_code) {
-		// save auth_token
-		users.doc(doc_id).set(data, {merge: true})
-
-		return {
-			auth_token: auth_token,
-			status: user.status
-		};
-	} else {
-		return null;
-	}
-
-}
-
-async function updateUserStatus(phone_number, auth_token, status) {
-
-	const doc_id = phone_number.replace('+', '')
-
-	let user_doc = await users.doc(doc_id).get(),
-		user = user_doc.data(),
-		old_status = user.status,
-		message = 'Updated successfully!',
-		isError = false,
-		data = { status }
-	// denied if token mismatched
-	if (auth_token != user.auth_token) {
-		isError = true
-		status = old_status
-		message = 'Access denied!'
-	} else
-	// denied if status is busy
-	if (user.status == 2) {
-		isError = true
-		status = old_status
-		message = 'We are busy! Try again later'
-	} else {
-
-		users.doc(doc_id).update(data)
-	}
-
-	return {status, message, isError};
-}
-
 function logRequest (req, res, next) {
 	
 	const data = req.body
@@ -146,26 +38,38 @@ function logRequest (req, res, next) {
 	next()
 }
 
+app.set('views', __dirname) 
+app.set('view engine', 'hbs')
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
   extended: true
 }))
-app.set('trust proxy', true)
 
 app.post('/call', logRequest, (req, res) => {
 
 	const twiml = new twilio.twiml.VoiceResponse()
 
-	twiml.enqueue({
-		action: '/dequeue-action',
-		waitUrl: '/wait'
-	}, queue_name)
+	let status = 2, // pending status
+		country_codes = process.env.WHITELISTED_COUNTRIES.split(',')
+	
+	// only allow for some countries otherwise hangup
+	if (country_codes.indexOf(req.body.CallerCountry) >= 0) {
+
+		twiml.enqueue({
+			action: '/dequeue-action',
+			waitUrl: '/wait'
+		}, queue_name)
+
+	} else {
+		status = 0
+		twiml.hangup()
+	}
 
 	// insert record to calls table
 	calls.doc(req.body.CallSid).set({
 		' _Time': new Date().toISOString(),
 		from: req.body.From,
-		status: 2 // pending status
+		status: status
 	})
 
 	res.send(twiml.toString())
@@ -181,7 +85,6 @@ app.post('/wait', logRequest, (req, res) => {
 	twiml.play({loop: 2}, '/ringtone')
 
 	// making phone call to available users
-	// todo // exclude caller number from available users
 	users.where('status', '==', 1).get()
 		.then(snapshot => {
 		    if (snapshot.empty) {
@@ -192,6 +95,10 @@ app.post('/wait', logRequest, (req, res) => {
 		    snapshot.forEach(doc => {
 		    	// console.log(doc.id, '=>', doc.data());
 		    	const user = doc.data()
+
+		    	// skip if caller is registered online
+		    	if (user.phone_number == req.body.From)
+		    		return;
 
 		    	client.calls.create({
 		    		machineDetection: 'Enable',
@@ -359,47 +266,6 @@ app.post('/startcall-action', logRequest, (req, res) => {
 })
 
 app.get('/', (req, res) => {
-	res.sendFile( __dirname + '/index.html')
-})
-
-app.post('/login', async (req, res) => {
-
-	const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress
-
-	console.log(`Attempt login from ${ip} using ${req.body.phone_number}`)
-
-	const phone_number = req.body.phone_number,
-		phone_info = await getPhoneInfo(phone_number, ip)
-
-	if (phone_info.isValidNumber)
-		sendPassword(phone_info.phone_number)
-
-	res.json(phone_info)
-})
-
-app.post('/verify', async (req, res) => {
-	
-	const phone_number = req.body.phone_number,
-		verification_code = req.body.verification_code,
-		user = await validatePassword(phone_number, verification_code)
-		response = {auth_token: null}
-
-		if (user != null) response = user
-
-	res.json(response)
-})
-
-app.post('/update-status', async (req, res) => {
-
-	const phone_number = req.body.phone_number,
-		auth_token = req.body.auth_token,
-		status = parseInt(req.body.status),
-		response = await updateUserStatus(phone_number, auth_token, status)
-
-	res.json(response)
-})
-
-app.get('/stats', (req, res) => {
 
 	async.parallel({
 		registered: function(cb) {
@@ -423,8 +289,76 @@ app.get('/stats', (req, res) => {
 			})
 		}
 	}, function(err, results) {
-		res.json(results)
+		
+		let data = results
+
+		data.phone_number = process.env.TWILIO_NUMBER
+		data.firebase_web_apikey = process.env.FIREBASE_WEB_APIKEY
+		data.whitelisted_countries = process.env.WHITELISTED_COUNTRIES
+
+		res.render('index', data)
 	})
+
+})
+
+app.post('/update-status', async (req, res) => {
+
+	const phone_number = req.body.phone_number,
+		doc_id = phone_number.replace('+', ''),
+		auth_token = req.body.auth_token,
+		status = parseInt(req.body.status)
+
+	if (auth_token) {
+	    admin.auth().verifyIdToken(auth_token).then(() => {
+	        users.doc(doc_id).get().then((doc) => {
+
+	        	if (doc.get('status') == 2) // deny if busy
+	        		return res.status(400).send('Busy')
+	        	else
+	        		doc.ref.update({status: status})
+
+	        	res.json({
+	        		phone_number: phone_number,
+	        		status: status
+	        	})
+	        })
+	    }).catch(() => {
+			res.status(403).send('Unauthorized')
+		});
+	} else {
+		res.status(403).send('Unauthorized')
+	}
+
+	res.json(response)
+})
+
+app.post('/get-status', (req, res) => {
+
+	const phone_number = req.body.phone_number,
+		doc_id = phone_number.replace('+', ''),
+		auth_token = req.body.auth_token
+
+	if (auth_token) {
+	    admin.auth().verifyIdToken(auth_token).then(() => {
+	        users.doc(doc_id).get().then((doc) => {
+
+	        	let status = 0,
+	        		data = { phone_number, status }
+
+	        	if (!doc.exists) {
+	        		users.doc(doc_id).set(data)
+	        	} else {
+	        		data.status = doc.get('status')
+	        	}
+
+	        	res.json(data)
+	        })
+	    }).catch(() => {
+			res.status(403).send('Unauthorized')
+		});
+	} else {
+		res.status(403).send('Unauthorized')
+	}
 })
 
 app.get('/ringtone', (req, res) => {
