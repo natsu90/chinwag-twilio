@@ -28,7 +28,6 @@ Amid the current pandemic outbreak, peoples are forced to stay home to break the
 
 1. Twilio account
 2. Firebase account
-3. IPStack API Key
 
 ### Installation
 
