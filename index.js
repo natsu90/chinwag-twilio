@@ -62,7 +62,7 @@ app.post('/call', logRequest, (req, res) => {
 
 	} else {
 		status = 0
-		twiml.hangup()
+		twiml.reject()
 	}
 
 	// insert record to calls table
@@ -125,7 +125,7 @@ app.post('/dequeue-action', logRequest, (req, res) => {
 
 	const twiml = new twilio.twiml.VoiceResponse()
 
-	twiml.hangup()
+	twiml.reject()
 	// update calls status to complete
 	calls.doc(req.body.CallSid).update({
 		status: 0
@@ -165,7 +165,7 @@ app.post('/endcall-action', logRequest, (req, res) => {
 	
 	const twiml = new twilio.twiml.VoiceResponse()
 
-	twiml.hangup()
+	twiml.reject()
 	// update back receiver status to online
 	const doc_id = req.body.Called.replace('+', '')
 
@@ -255,7 +255,7 @@ app.post('/startcall-action', logRequest, (req, res) => {
 		answeredBy = req.body.AnsweredBy
 	// hangup reciever call if answered by machine
 	if (answeredBy.indexOf('machine') >= 0)
-		twiml.hangup()
+		twiml.reject()
 	else
 		// dequeue
 		twiml.dial({action: '/endcall-action'}).queue({
